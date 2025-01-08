@@ -1,7 +1,6 @@
 import argparse
 from io import TextIOWrapper
 from queue import SimpleQueue, Empty
-from os import urandom
 from threading import Thread
 from time import sleep
 # from time import time_ns
@@ -25,8 +24,6 @@ class DummySensor(KESPPPeriodicSensorBase[Optional[int]]):
         self._generator_thread: Optional[Thread] = None
         self._file: TextIOWrapper
 
-        self._id = int.from_bytes(urandom(2))
-
     def _sample_generator(self):
         while self._initialized:
             if self._buffering:
@@ -36,15 +33,6 @@ class DummySensor(KESPPPeriodicSensorBase[Optional[int]]):
                 self._counter += 1
 
             sleep(1 / self._sps + self._sample_drift_s)
-
-    def get_sensor_type(self) -> str:
-        return "dummy"
-
-    def get_sensor_id(self) -> str:
-        return str(self._id)
-
-    def get_file_extension(self) -> str:
-        return 'txt'
 
     def init_sensor(self) -> None:
         # An init() method can be repeated - always check if sensor is already initialized
@@ -79,8 +67,8 @@ class DummySensor(KESPPPeriodicSensorBase[Optional[int]]):
     def sampling_period_s(self) -> float:
         return self._sampling_period
 
-    def open_file(self, full_path: str) -> str:
-        self._file = open(full_path, 'x')
+    def open_file(self, timestamp: str) -> str:
+        self._file = open(f'{timestamp}_dummy{self._sample_drift_s}.txt', 'x')
         return self._file.name
 
     def close_file(self) -> None:
@@ -96,18 +84,16 @@ def main():
     parser.add_argument('--drift', type=float, help='Sensor clock drift', default=-0.0004)
     parser.add_argument('--max-late-samples', type=int, help='Max late samples', default=1)
     parser.add_argument('--late-sample-doubling', type=float, help='Late sample doubling periods', default=20.0)
-    parser.add_argument('--path', type=str, help='Path to a directory where the files will be saved', default='.')
     parser.add_argument('--sync-off', action='store_true', help='Turn off the sync algorithm')
     args = parser.parse_args()
 
-    dummy: DummySensor = DummySensor(sps=args.sps, sample_drift_s=args.drift)
+    sensor: DummySensor = DummySensor(sps=args.sps, sample_drift_s=args.drift)
 
     acquisition_engine = PeriodicAcquisitionEngine(
-        sensor=dummy,
+        sensor,
         max_late_samples=args.max_late_samples,
         late_sample_doubling_period=args.late_sample_doubling,
         sync_off=args.sync_off,
-        write_path=args.path,
     )
     acquisition_engine.run(verbose=True)
 

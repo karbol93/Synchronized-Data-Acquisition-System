@@ -1,36 +1,23 @@
-from os import EX_UNAVAILABLE, access, W_OK
-from os.path import isdir, abspath
+from os import EX_UNAVAILABLE
 from time import sleep
 from math import ceil
-from typing import Optional
+from typing import Optional, Any
 
 from kespp_sensors_abc import KESPPPeriodicSensorBase
 from kespp_python import kespp
+# from cv2_camera import OpenCVCamera
 
 
 class PeriodicAcquisitionEngine:
     NANO: float = 1e-9
 
-    def __init__(
-            self,
-            sensor: KESPPPeriodicSensorBase,
-            max_late_samples: int = 1,
-            late_sample_doubling_period: float = 2.0,
-            sync_off: bool = False,
-            write_path: str = '.',
-        ):
+    def __init__(self, sensor: KESPPPeriodicSensorBase, max_late_samples: int = 1, late_sample_doubling_period: float = 2.0, sync_off: bool = False):
         # sched_setscheduler(0, SCHED_FIFO, sched_param(1))
         self._client: kespp.KESPPClient = kespp.KESPPClient()
         self._sensor: KESPPPeriodicSensorBase = sensor
         self._max_late_samples: int = max_late_samples
         self._late_sample_doubling_period: float = late_sample_doubling_period
         self.sync_off: bool = sync_off
-
-        if not isdir(write_path):
-            raise NotADirectoryError(f'{abspath(write_path)} is not a directory or does not exist')
-        if not access(write_path, W_OK):
-            raise PermissionError(f'cannot write to {abspath(write_path)} directory')
-        self._write_path: str = write_path.rstrip('/')
 
         self.verbose_run: bool = False
 
@@ -51,13 +38,6 @@ class PeriodicAcquisitionEngine:
                 exit(EX_UNAVAILABLE)
             i += 1
         print('Connected!\n')
-
-    def _get_filename(self, synchro_data) -> str:
-        timestamp: str = self._client.recording_timestamp(synchro_data.chunk_nanosec())
-        timestamp = timestamp[2:15] + '-' + timestamp[16:]
-        return f'{self._write_path}/{timestamp}'\
-               f'AB{self._sensor.get_sensor_type()}C{self._sensor.get_sensor_id()}'\
-               f'.{self._sensor.get_file_extension()}'
 
     def _new_control_frame_received(self, synchro_data, old_synchro_data, new_chunk_timepoint) -> bool:
         # New ControlFrame received so new chunk or stop is coming
@@ -82,7 +62,7 @@ class PeriodicAcquisitionEngine:
             session_sample_counter: int = 0
             timeout_detected: bool = False
             first_non_ok_time: int = 0
-            sample = None
+            sample: Any = None
             sample_timestamp: int = 0
             sample_to_forward: bool = False
 
@@ -91,12 +71,18 @@ class PeriodicAcquisitionEngine:
             limit_interpolated_samples_counter: int = 0
             removed_samples_counter: int = 0
 
+            type(self._sensor)
+            if self._sensor.type_string=="cam":
+                timestampy = open(f'{session_start_time}_timestamps_cam{self._sensor._camera_index}.txt', 'w')  # works only for cv2_camera plugin
+            else:
+                timestampy = open(f'{session_start_time}_timestamps_lidar.txt', 'w')
+
             # Session recording loop (between start and stop recording commands):
             while (not synchro_data.stop_flag()) and (not timeout_detected):
                 if kespp.KESPPClient.now_nanosec() >= session_start_time:
-                    filename = self._sensor.open_file(self._get_filename(synchro_data))
+                    filename = self._sensor.open_file(self._client.recording_timestamp(synchro_data.chunk_nanosec()))
                 else:
-                    filename = None  # Filename "None" means there is a fake chunk before real recording
+                    filename = None  # Filename "None" means there is fake chunk before real recording
 
                 self._v_print(filename if filename is not None else "Passed up samples")
 
@@ -111,8 +97,8 @@ class PeriodicAcquisitionEngine:
                 while True:
                     if not sample_to_forward:
                         # TODO: Buffer with timestamps for samples instead of fetching one by one?
-                        sample = self._sensor.get_sample()  # blocking call
-                        sample_timestamp = self._client.now_nanosec()
+                        sample, sample_timestamp = self._sensor.get_sample()  # blocking call
+                        # sample_timestamp = self._client.now_nanosec()
                         if filename is not None:
                             read_samples_counter += 1
                     else:
@@ -128,6 +114,10 @@ class PeriodicAcquisitionEngine:
                             first_non_ok_time = 0
                             self._sensor.write_sample_to_file(sample)
                             chunk_sample_counter += 1
+
+                            # DODANE ZAPISYWANIE TIMESTAMPÓW
+                            timestampy.write(f'{str(sample_timestamp)}\n')
+
                         elif diff < 0:
                             # Too few samples
                             if first_non_ok_time == 0:
@@ -137,6 +127,10 @@ class PeriodicAcquisitionEngine:
                                 self._sensor.write_sample_to_file(self._sensor.interpolate_sample(sample))
                                 chunk_sample_counter += 1
                                 limit_interpolated_samples_counter += 1
+
+                                # DODANE ZAPISYWANIE TIMESTAMPÓW
+                                timestampy.write(f'{str(sample_timestamp)}\n')
+
                                 self._v_print("Too few samples - doubled because max exceeded", end="")
                                 self._v_print(", last sample timestamp:", self._client.recording_timestamp(sample_timestamp))
                                 sample_to_forward = True  # Current sample forwarded to next loop cycle
@@ -146,6 +140,10 @@ class PeriodicAcquisitionEngine:
                                 self._sensor.write_sample_to_file(self._sensor.interpolate_sample(sample))
                                 chunk_sample_counter += 1
                                 time_interpolated_samples_counter += 1
+
+                                # DODANE ZAPISYWANIE TIMESTAMPÓW
+                                timestampy.write(f'{str(sample_timestamp)}\n')
+
                                 self._v_print("Too few samples - doubled because time exceeded", end="")
                                 self._v_print(", last sample timestamp:", self._client.recording_timestamp(sample_timestamp))
                                 sample_to_forward = True  # Current sample forwarded to next loop cycle
@@ -156,6 +154,9 @@ class PeriodicAcquisitionEngine:
                                 # Not doubled
                                 self._sensor.write_sample_to_file(sample)
                                 chunk_sample_counter += 1
+
+                                # DODANE ZAPISYWANIE TIMESTAMPÓW
+                                timestampy.write(f'{str(sample_timestamp)}\n')
 
                         else:
                             # Too many samples: diff > 0
@@ -214,6 +215,9 @@ class PeriodicAcquisitionEngine:
             )
             self._v_print('Removed samples:', removed_samples_counter)
             self._v_print()
+
+
+            timestampy.close()
 
     def run(self, verbose: bool = False) -> None:
         self.verbose_run = verbose

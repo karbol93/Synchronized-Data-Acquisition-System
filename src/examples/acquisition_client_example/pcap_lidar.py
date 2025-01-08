@@ -4,7 +4,7 @@ import argparse
 from io import TextIOWrapper
 from queue import SimpleQueue, Empty
 from threading import Thread, Condition
-from time import sleep
+from time import monotonic_ns
 
 from typing import Optional
 from kespp_sensors_abc import KESPPPeriodicSensorBase
@@ -23,6 +23,8 @@ class LidarSensor(KESPPPeriodicSensorBase[Optional[int]]):
         self._buffering: bool = False
         self._visualize: bool = visualize
         self._generator_thread: Optional[Thread] = None
+
+        self.type_string = "lidar"
 
     def _sample_viewer(self) -> None:
         while self._initialized and self._visualize:
@@ -73,10 +75,10 @@ class LidarSensor(KESPPPeriodicSensorBase[Optional[int]]):
     def samples_in_buffer(self) -> int:
         return 1
 
-    def get_sample(self) -> Optional[int]:
+    def get_sample(self):
         self._counter += 1
         self._lidar.get_data()
-        return self._counter
+        return self._counter, monotonic_ns()
 
     def interpolate_sample(self, sample: Optional[int]) -> Optional[int]:
         return None
@@ -109,7 +111,6 @@ def main():
         sensor,
         args.max_late_samples,
         args.late_sample_doubling,
-        write_path=args.path,
     )
     acquisition_engine.run(verbose=True)
 

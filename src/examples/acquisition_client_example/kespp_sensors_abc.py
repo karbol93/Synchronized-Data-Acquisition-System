@@ -7,28 +7,6 @@ T = TypeVar('T')
 
 class KESPPPeriodicSensorBase(Generic[T], metaclass=ABCMeta):
     @abstractmethod
-    def get_sensor_type(self) -> str:
-        # Returns a short plugin/sensor name for filename creation,
-        # eg. "cvcam" for cv2 camera plugin
-        pass
-
-    @abstractmethod
-    def get_sensor_id(self) -> str:
-        # Returns a short, unique ID, used for differentiation
-        # between sensors of the same type for filename creation.
-        # If used multiple times, always has to return the same value.
-        # First time called during the session.
-        # If the acquisition is performed on many hosts it must be differentiated anyway.
-        # It can be a random number, based on random numbers provided by the OS.
-        pass
-
-    @abstractmethod
-    def get_file_extension(self) -> str:
-        # Returns a file extension without a dot.
-        # First time called during the session.
-        pass
-
-    @abstractmethod
     def init_sensor(self) -> None:  # Separate init allows for sensor re-initialization
         # An init() method can be repeated - always check if sensor is already initialized
         pass
@@ -47,9 +25,10 @@ class KESPPPeriodicSensorBase(Generic[T], metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_sample(self) -> T:
-        # Returns a sample if available, blocks if no samples in buffer,
-        # releases immediatelly after new sample(s) arrival
+    def get_sample(self) -> tuple[T, int]:
+        # Returns a sample and its timestamp,
+        # blocks if no samples in buffer,
+        # releases immediately after new sample(s) arrival
         pass
 
     @abstractmethod
@@ -64,7 +43,7 @@ class KESPPPeriodicSensorBase(Generic[T], metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def open_file(self, full_path: str) -> str:
+    def open_file(self, timestamp: str) -> str:
         pass
 
     @abstractmethod
