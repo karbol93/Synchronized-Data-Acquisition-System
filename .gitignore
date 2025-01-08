@@ -1,0 +1,57 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.kmd
+build
+dist
+__pycache__
+
+# Data
+*.csv
+*.avi
+*.pcap
+
+# Virtual envs
+venv*
+
+# Generated docs
+docs/html
+docs/latex
+
+# Nextcloud
+.sync*
+.owncloudsync.log
+.nextcloudsync.log
+
+# Build
+*.egg-info
+*.whl
