@@ -32,12 +32,13 @@
 *.app
 *.kmd
 build
-dist
 __pycache__
 
 # Data
 *.csv
 *.avi
+
+# Captures
 *.pcap
 
 # Virtual envs
@@ -45,13 +46,8 @@ venv*
 
 # Generated docs
 docs/html
-docs/latex
 
 # Nextcloud
 .sync*
 .owncloudsync.log
 .nextcloudsync.log
-
-# Build
-*.egg-info
-*.whl
